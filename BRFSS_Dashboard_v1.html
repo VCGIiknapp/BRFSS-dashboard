@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vermont BRFSS Dashboard</title>
+<style>
+  :root, .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --success-text:   #006300;
+    --series-1: #0071a1; --series-2: #d2451e; --series-3: #660033; --series-4: #cb7e2a;
+    --series-5: #003366; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
+    --brand-accent:   #660033;
+  }
+  :root[data-theme="dark"], [data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --success-text:   #0ca30c;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #b3336b; --series-4: #c98500;
+    --series-5: #002153; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+    --brand-accent:   #b3336b;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page-plane);
+    color: var(--text-primary);
+  }
+  body { padding-bottom: 40px; }
+  a { color: var(--series-1); }
+  button { font-family: inherit; }
+
+  /* ---------- Header ---------- */
+  header.top {
+    background: linear-gradient(135deg, #003366, #204f84);
+    color: #fff;
+    padding: 20px 28px 16px;
+  }
+  header.top .bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    max-width: 1240px; margin: 0 auto;
+  }
+  header.top h1 { margin: 0; font-size: 22px; font-weight: 700; }
+  header.top p.sub { margin: 2px 0 0; font-size: 13px; color: #cfe0f5; }
+  nav.tabs { display: flex; gap: 6px; }
+  nav.tabs button {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25);
+    color: #fff; padding: 8px 16px; border-radius: 999px; cursor: pointer;
+    font-size: 14px; font-weight: 600;
+  }
+  nav.tabs button.active { background: #fff; color: #12395e; }
+  #themeToggle {
+    background: transparent; border: 1px solid rgba(255,255,255,0.4); color: #fff;
+    border-radius: 999px; padding: 8px 14px; cursor: pointer; font-size: 13px;
+  }
+
+  main { max-width: 1240px; margin: 0 auto; padding: 24px 28px; }
+
+  /* ---------- Cards / general ---------- */
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .muted { color: var(--text-muted); }
+  .secondary { color: var(--text-secondary); }
+
+  /* ---------- Home ---------- */
+  .hero { padding: 22px 24px; margin-bottom: 20px; }
+  .hero h2 { margin: 0 0 8px; font-size: 20px; }
+  .hero p { margin: 0; line-height: 1.55; color: var(--text-secondary); max-width: 900px; }
+  .topic-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 18px;
+  }
+  @media (max-width: 900px) { .topic-grid { grid-template-columns: repeat(2, 1fr); } }
+  .topic-card {
+    padding: 16px; cursor: pointer; transition: box-shadow .15s, transform .15s;
+    border-top: 4px solid var(--brand-accent);
+    display: flex; flex-direction: column; gap: 8px;
+    width: 100%; text-align: left; font: inherit; color: inherit;
+    margin: 0; appearance: none; -webkit-appearance: none;
+  }
+  .topic-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.12); transform: translateY(-2px); }
+  .topic-card:focus-visible {
+    outline: 3px solid var(--series-1); outline-offset: 2px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12); transform: translateY(-2px);
+  }
+  .topic-card h3 { margin: 0; font-size: 15px; }
+  .topic-card .count { font-size: 12px; color: var(--text-muted); }
+  .topic-card .stat { font-size: 26px; font-weight: 700; color: var(--text-primary); }
+  .topic-card .stat-label { font-size: 12px; color: var(--text-secondary); line-height: 1.3; min-height: 32px; }
+  .topic-card .explore { font-size: 12px; font-weight: 600; color: var(--brand-accent); }
+
+  /* ---------- Topic view layout ---------- */
+  .topic-layout { display: grid; grid-template-columns: 250px 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 800px) { .topic-layout { grid-template-columns: 1fr; } }
+  .sidebar { padding: 14px; position: sticky; top: 12px; }
+  .sidebar h4 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+  .topic-list-item {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+    background: transparent; border: none; padding: 9px 8px; border-radius: 8px; cursor: pointer;
+    font-size: 13.5px; color: var(--text-primary);
+  }
+  .topic-list-item:hover { background: var(--gridline); }
+  .topic-list-item.active { background: var(--brand-accent); color: #fff; }
+  .back-link { font-size: 12.5px; margin-bottom: 8px; background: none; border: none; color: var(--series-1); cursor: pointer; padding: 4px 2px; }
+
+  .indicator-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+  .indicator-item {
+    text-align: left; background: transparent; border: 1px solid transparent; border-radius: 8px;
+    padding: 8px 10px; cursor: pointer; font-size: 13px; color: var(--text-primary);
+  }
+  .indicator-item:hover { background: var(--gridline); }
+  .indicator-item.active { border-color: var(--series-1); background: var(--gridline); font-weight: 600; }
+
+  .panel { padding: 20px 22px; min-height: 420px; }
+  .panel h2 { margin: 0 0 2px; font-size: 19px; }
+  .panel .meta-row { display: flex; gap: 10px; align-items: center; margin: 6px 0 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-muted); }
+  .pill { background: var(--gridline); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: var(--text-secondary); }
+
+  .view-toggle, .dim-toggle { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .toggle-btn {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+    padding: 7px 13px; border-radius: 8px; cursor: pointer; font-size: 12.5px;
+  }
+  .toggle-btn.active { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+
+  .chart-toolbar { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+  .link-btn { background: none; border: none; color: var(--series-1); cursor: pointer; font-size: 12px; text-decoration: underline; }
+
+  .empty-state { color: var(--text-muted); font-size: 13.5px; padding: 30px 10px; text-align: center; }
+
+  .sig-panel { margin-top: 14px; padding: 12px 14px; background: var(--gridline); border-radius: 8px; font-size: 13px; }
+  .sig-panel .sig-title { font-weight: 700; font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; color: var(--text-secondary); margin-bottom: 6px; }
+  .sig-panel ul { margin: 4px 0 0; padding-left: 18px; }
+  .sig-panel li { margin-bottom: 3px; }
+  .sig-badge { display: inline-block; background: var(--series-7); color: #fff; border-radius: 4px; font-size: 10.5px; font-weight: 700; padding: 1px 6px; margin-right: 6px; vertical-align: middle; }
+
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data-table th, table.data-table td {
+    text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--gridline);
+    font-variant-numeric: tabular-nums;
+  }
+  table.data-table th { color: var(--text-secondary); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .02em; }
+
+  .downloads { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .dl-btn {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .dl-btn:hover { background: var(--gridline); }
+
+  .chart-tooltip {
+    position: fixed; pointer-events: none; background: var(--text-primary); color: var(--page-plane);
+    font-size: 12px; padding: 6px 9px; border-radius: 6px; z-index: 50; opacity: 0; transition: opacity .1s;
+    max-width: 240px; line-height: 1.4;
+  }
+  .chart-tooltip.show { opacity: 1; }
+
+  footer.site {
+    max-width: 1240px; margin: 20px auto 0; padding: 16px 28px; font-size: 12px; color: var(--text-muted);
+    border-top: 1px solid var(--gridline);
+  }
+
+  .bar rect { cursor: pointer; }
+  .bar-value { font-size: 12px; font-weight: 700; fill: var(--text-primary); }
+  .bar-label { font-size: 11.5px; fill: var(--text-secondary); }
+  .axis-line { stroke: var(--baseline); stroke-width: 1; }
+</style>
+</head>
+<body class="viz-root">
+
+<header class="top">
+  <div class="bar">
+    <div>
+      <h1>Vermont BRFSS Dashboard</h1>
+      <p class="sub">Behavioral Risk Factor Surveillance System &middot; 2024 preview data</p>
+    </div>
+    <nav class="tabs">
+      <button id="navHome" class="active">Home</button>
+      <button id="navTopic">Topic</button>
+    </nav>
+    <button id="themeToggle" title="Toggle light/dark mode">&#9680; Theme</button>
+  </div>
+</header>
+
+<main>
+  <section id="homeView"></section>
+  <section id="topicView" hidden></section>
+</main>
+
+<footer class="site">
+  Data source: 2024 Vermont Behavioral Risk Factor Surveillance System (BRFSS), preview/test extract.
+  This prototype currently includes one data year; additional years will populate the Trend Over Time view automatically as they become available.
+  For full statistical methodology and detailed subgroup comparisons, refer to the complete BRFSS annual report.
+</footer>
+
+<div id="tooltip" class="chart-tooltip"></div>
+
+<script>
+/* ============================= DATA ============================= */
+const DATA = [{"question":"ARTHRITIS_N","label":"Percent of adults with arthritis","topic":"Chronic Disease","subtopic":"Arthritis","datayear":2024,"Vermont":30,"Male":27,"Female":32,"diffsex":"Female>Male","Age18_24":null,"Age25_44":10,"Age45_64":37,"Age65plus":55,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":"65>4564","HSorLess":32,"SomeCollege":33,"CollegeOrMore":26,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":40,"MiddleIncome":28,"HigherIncome":22,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":"Mid>High","BIPOC":23,"WnH":31,"diffrace":"WNH>BIPOC","LGBTQ":23,"HetCis":31,"diffsogi":"HetCis>LGBTQ","AnyDisability":47,"NoDisability":24,"diffdis":"AnyDis>NoDis"},{"question":"ASTHMA_N","label":"Percent of adults with asthma","topic":"Chronic Disease","subtopic":"Asthma","datayear":2024,"Vermont":12,"Male":9,"Female":16,"diffsex":"Female>Male","Age18_24":14,"Age25_44":12,"Age45_64":15,"Age65plus":10,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":"4564>65","HSorLess":13,"SomeCollege":14,"CollegeOrMore":10,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":"SC>C","LowerIncome":17,"MiddleIncome":11,"HigherIncome":9,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":null,"BIPOC":12,"WnH":12,"diffrace":null,"LGBTQ":14,"HetCis":12,"diffsogi":null,"AnyDisability":20,"NoDisability":9,"diffdis":"AnyDis>NoDis"},{"question":"BINGEDRK_N","label":"Percent of adults who report binge drinking","topic":"Substance Use and Tobacco","subtopic":"Binge Drinking","datayear":2024,"Vermont":17,"Male":20,"Female":13,"diffsex":"Male>Female","Age18_24":22,"Age25_44":25,"Age45_64":16,"Age65plus":6,"diffage1825":null,"diffage1845":null,"diffage1865":"1824>65","diffage2545":"2544>4564","diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":15,"SomeCollege":18,"CollegeOrMore":17,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":15,"MiddleIncome":19,"HigherIncome":21,"diffinclowmid":null,"diffinclowhigh":"High>Low","diffincmidhigh":null,"BIPOC":16,"WnH":17,"diffrace":null,"LGBTQ":18,"HetCis":17,"diffsogi":null,"AnyDisability":14,"NoDisability":18,"diffdis":null},{"question":"BIRTHCTRL_N","label":"Percent of adult females 18-49 who used birth control in the past year","topic":"Healthy Behaviors and Prevention","subtopic":"Birth Control Use","datayear":2024,"Vermont":88,"Male":null,"Female":88,"diffsex":null,"Age18_24":97,"Age25_44":85,"Age45_64":87,"Age65plus":null,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":82,"SomeCollege":89,"CollegeOrMore":92,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":83,"MiddleIncome":88,"HigherIncome":90,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":88,"WnH":88,"diffrace":null,"LGBTQ":93,"HetCis":88,"diffsogi":null,"AnyDisability":89,"NoDisability":88,"diffdis":null},{"question":"CANCER_N","label":"Percent of adults ever diagnosed with cancer","topic":"Chronic Disease","subtopic":"Cancer","datayear":2024,"Vermont":10,"Male":9,"Female":10,"diffsex":null,"Age18_24":null,"Age25_44":2,"Age45_64":11,"Age65plus":20,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":"65>4564","HSorLess":8,"SomeCollege":11,"CollegeOrMore":10,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":10,"MiddleIncome":10,"HigherIncome":9,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":7,"WnH":10,"diffrace":null,"LGBTQ":6,"HetCis":10,"diffsogi":"HetCis>LGBTQ","AnyDisability":12,"NoDisability":9,"diffdis":"AnyDis>NoDis"},{"question":"CANNABISDRIVE_N","label":"Percent of adults who report driving after using cannabis","topic":"Substance Use and Tobacco","subtopic":"Cannabis & Driving","datayear":2024,"Vermont":19,"Male":23,"Female":15,"diffsex":null,"Age18_24":null,"Age25_44":26,"Age45_64":18,"Age65plus":11,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":"2544>65","diffage4565":null,"HSorLess":17,"SomeCollege":26,"CollegeOrMore":17,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":18,"MiddleIncome":21,"HigherIncome":21,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":17,"WnH":20,"diffrace":null,"LGBTQ":15,"HetCis":21,"diffsogi":null,"AnyDisability":19,"NoDisability":20,"diffdis":null},{"question":"CANNABIS_N","label":"Percent of adults who used cannabis in the past month","topic":"Substance Use and Tobacco","subtopic":"Cannabis Use","datayear":2024,"Vermont":25,"Male":29,"Female":20,"diffsex":"Male>Female","Age18_24":28,"Age25_44":39,"Age45_64":24,"Age65plus":10,"diffage1825":"2544>1824","diffage1845":null,"diffage1865":"1824>65","diffage2545":"2544>4564","diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":24,"SomeCollege":27,"CollegeOrMore":24,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":30,"MiddleIncome":26,"HigherIncome":24,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":30,"WnH":24,"diffrace":null,"LGBTQ":39,"HetCis":23,"diffsogi":"LGBTQ>HetCis","AnyDisability":27,"NoDisability":24,"diffdis":null},{"question":"CAREGIVE_N","label":"Percent of adults who provided regular care or assistance in the past month","topic":"Health Status","subtopic":"Caregiving","datayear":2024,"Vermont":null,"Male":null,"Female":null,"diffsex":null,"Age18_24":null,"Age25_44":null,"Age45_64":null,"Age65plus":null,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":null,"SomeCollege":null,"CollegeOrMore":null,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":null,"MiddleIncome":null,"HigherIncome":null,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":null,"WnH":null,"diffrace":null,"LGBTQ":null,"HetCis":null,"diffsogi":null,"AnyDisability":null,"NoDisability":null,"diffdis":null},{"question":"CIGQUIT_N","label":"Percent of adults who tried to quit smoking in the past year","topic":"Substance Use and Tobacco","subtopic":"Cigarette Quit Attempts","datayear":2024,"Vermont":52,"Male":49,"Female":56,"diffsex":null,"Age18_24":88,"Age25_44":51,"Age45_64":48,"Age65plus":51,"diffage1825":"1824>2544","diffage1845":"1824>4564","diffage1865":"1824>65","diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":52,"SomeCollege":53,"CollegeOrMore":53,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":52,"MiddleIncome":57,"HigherIncome":51,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":68,"WnH":49,"diffrace":null,"LGBTQ":62,"HetCis":51,"diffsogi":null,"AnyDisability":50,"NoDisability":53,"diffdis":null},{"question":"CIG_N","label":"Percent of adults who currently smoke cigarettes","topic":"Substance Use and Tobacco","subtopic":"Cigarette Use","datayear":2024,"Vermont":11,"Male":12,"Female":9,"diffsex":null,"Age18_24":7,"Age25_44":13,"Age45_64":14,"Age65plus":6,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":18,"SomeCollege":11,"CollegeOrMore":4,"diffeduHSSC":"HS>SC","diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":20,"MiddleIncome":8,"HigherIncome":3,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":"Mid>High","BIPOC":16,"WnH":10,"diffrace":"BIPOC>WNH","LGBTQ":9,"HetCis":11,"diffsogi":null,"AnyDisability":17,"NoDisability":8,"diffdis":"AnyDis>NoDis"},{"question":"COGDECLINE_N","label":"Percent of adults 45 and older with subjective cognitive decline","topic":"Chronic Disease","subtopic":"Subjective Cognitive Decline, 45+","datayear":2024,"Vermont":16,"Male":16,"Female":16,"diffsex":null,"Age18_24":null,"Age25_44":null,"Age45_64":15,"Age65plus":17,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":19,"SomeCollege":16,"CollegeOrMore":12,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":null,"LowerIncome":24,"MiddleIncome":13,"HigherIncome":11,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":null,"BIPOC":26,"WnH":15,"diffrace":"BIPOC>WNH","LGBTQ":18,"HetCis":15,"diffsogi":null,"AnyDisability":33,"NoDisability":9,"diffdis":"AnyDis>NoDis"},{"question":"CONSUICIDE_N","label":"Percent of adults who seriously considered suicide in the past year","topic":"Injury, Violence and Safety","subtopic":"Suicide Ideation","datayear":2024,"Vermont":5,"Male":5,"Female":4,"diffsex":null,"Age18_24":11,"Age25_44":7,"Age45_64":3,"Age65plus":1,"diffage1825":null,"diffage1845":"1824>4564","diffage1865":"1824>65","diffage2545":"2544>4564","diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":6,"SomeCollege":6,"CollegeOrMore":3,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":8,"MiddleIncome":4,"HigherIncome":null,"diffinclowmid":"Low>Mid","diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":6,"WnH":4,"diffrace":null,"LGBTQ":15,"HetCis":3,"diffsogi":"LGBTQ>HetCis","AnyDisability":10,"NoDisability":3,"diffdis":"AnyDis>NoDis"},{"question":"COPD_N","label":"Percent of adults with chronic obstructive pulmonary disease","topic":"Chronic Disease","subtopic":"COPD","datayear":2024,"Vermont":6,"Male":6,"Female":6,"diffsex":null,"Age18_24":null,"Age25_44":1,"Age45_64":7,"Age65plus":10,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":null,"HSorLess":9,"SomeCollege":7,"CollegeOrMore":2,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":12,"MiddleIncome":4,"HigherIncome":3,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":null,"BIPOC":7,"WnH":6,"diffrace":null,"LGBTQ":5,"HetCis":6,"diffsogi":null,"AnyDisability":13,"NoDisability":3,"diffdis":"AnyDis>NoDis"},{"question":"CVD_N","label":"Percent of adults with cardiovascular disease","topic":"Chronic Disease","subtopic":"Cardiovascular Disease","datayear":2024,"Vermont":9,"Male":11,"Female":8,"diffsex":"Male>Female","Age18_24":null,"Age25_44":2,"Age45_64":9,"Age65plus":21,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":"65>4564","HSorLess":12,"SomeCollege":10,"CollegeOrMore":7,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":17,"MiddleIncome":6,"HigherIncome":5,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":null,"BIPOC":12,"WnH":9,"diffrace":null,"LGBTQ":5,"HetCis":9,"diffsogi":"HetCis>LGBTQ","AnyDisability":17,"NoDisability":7,"diffdis":"AnyDis>NoDis"},{"question":"DENVISIT_N","label":"Percent of adults who visited the dentist in the past year","topic":"Health Care Access","subtopic":"Dentist Visits","datayear":2024,"Vermont":70,"Male":67,"Female":74,"diffsex":"Female>Male","Age18_24":68,"Age25_44":63,"Age45_64":72,"Age65plus":78,"diffage1825":null,"diffage1845":null,"diffage1865":"65>1824","diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":"65>4564","HSorLess":59,"SomeCollege":67,"CollegeOrMore":83,"diffeduHSSC":"SC>HS","diffeduHSC":"C>HS","diffeduSCC":"C>SC","LowerIncome":54,"MiddleIncome":75,"HigherIncome":84,"diffinclowmid":"Mid>Low","diffinclowhigh":"High>Low","diffincmidhigh":"High>Mid","BIPOC":62,"WnH":71,"diffrace":"WNH>BIPOC","LGBTQ":61,"HetCis":73,"diffsogi":"HetCis>LGBTQ","AnyDisability":58,"NoDisability":75,"diffdis":"NoDis>AnyDis"},{"question":"DEPRESS_N","label":"Percent of adults with a depressive disorder","topic":"Chronic Disease","subtopic":"Depressive Disorder","datayear":2024,"Vermont":26,"Male":20,"Female":33,"diffsex":"Female>Male","Age18_24":34,"Age25_44":32,"Age45_64":27,"Age65plus":18,"diffage1825":null,"diffage1845":null,"diffage1865":"1824>65","diffage2545":null,"diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":27,"SomeCollege":29,"CollegeOrMore":23,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":"SC>C","LowerIncome":37,"MiddleIncome":25,"HigherIncome":19,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":"Mid>High","BIPOC":28,"WnH":26,"diffrace":null,"LGBTQ":45,"HetCis":24,"diffsogi":"LGBTQ>HetCis","AnyDisability":44,"NoDisability":21,"diffdis":"AnyDis>NoDis"},{"question":"DIAB_N","label":"Percent of adults with diabetes","topic":"Chronic Disease","subtopic":"Diabetes","datayear":2024,"Vermont":9,"Male":10,"Female":8,"diffsex":"Male>Female","Age18_24":null,"Age25_44":2,"Age45_64":11,"Age65plus":17,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":"65>4564","HSorLess":12,"SomeCollege":10,"CollegeOrMore":6,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":13,"MiddleIncome":8,"HigherIncome":4,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":"Mid>High","BIPOC":9,"WnH":9,"diffrace":null,"LGBTQ":6,"HetCis":9,"diffsogi":"HetCis>LGBTQ","AnyDisability":16,"NoDisability":6,"diffdis":"AnyDis>NoDis"},{"question":"DISABILITY_N","label":"Percent of adults with any disability","topic":"Health Status","subtopic":"Disability","datayear":2024,"Vermont":26,"Male":25,"Female":27,"diffsex":null,"Age18_24":32,"Age25_44":19,"Age45_64":23,"Age65plus":33,"diffage1825":"1824>2544","diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":"65>2544","diffage4565":"65>4564","HSorLess":35,"SomeCollege":29,"CollegeOrMore":15,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":43,"MiddleIncome":17,"HigherIncome":11,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":"Mid>High","BIPOC":36,"WnH":24,"diffrace":"BIPOC>WNH","LGBTQ":38,"HetCis":23,"diffsogi":"LGBTQ>HetCis","AnyDisability":null,"NoDisability":null,"diffdis":null},{"question":"DOCVISIT_N","label":"Percent of adults who had a routine doctor visit in the past year","topic":"Health Care Access","subtopic":"Routine Doctor Visits","datayear":2024,"Vermont":78,"Male":74,"Female":82,"diffsex":"Female>Male","Age18_24":73,"Age25_44":66,"Age45_64":79,"Age65plus":92,"diffage1825":null,"diffage1845":null,"diffage1865":"65>1824","diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":"65>4564","HSorLess":75,"SomeCollege":81,"CollegeOrMore":79,"diffeduHSSC":"SC>HS","diffeduHSC":"C>HS","diffeduSCC":null,"LowerIncome":77,"MiddleIncome":77,"HigherIncome":79,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":76,"WnH":79,"diffrace":null,"LGBTQ":76,"HetCis":78,"diffsogi":null,"AnyDisability":79,"NoDisability":78,"diffdis":null},{"question":"DRNKANY_N","label":"Percent of adults with any alcohol consumption in the past month","topic":"Substance Use and Tobacco","subtopic":"Alcohol Use","datayear":2024,"Vermont":62,"Male":65,"Female":59,"diffsex":"Male>Female","Age18_24":52,"Age25_44":68,"Age45_64":66,"Age65plus":56,"diffage1825":"2544>1824","diffage1845":"4564>1824","diffage1865":null,"diffage2545":null,"diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":52,"SomeCollege":58,"CollegeOrMore":74,"diffeduHSSC":null,"diffeduHSC":"C>HS","diffeduSCC":"C>SC","LowerIncome":49,"MiddleIncome":68,"HigherIncome":77,"diffinclowmid":"Mid>Low","diffinclowhigh":"High>Low","diffincmidhigh":"High>Mid","BIPOC":50,"WnH":63,"diffrace":"WNH>BIPOC","LGBTQ":60,"HetCis":63,"diffsogi":null,"AnyDisability":49,"NoDisability":66,"diffdis":"NoDis>AnyDis"},{"question":"ECIG_N","label":"Percent of adults who currently use e-cigarettes","topic":"Substance Use and Tobacco","subtopic":"E-Cigarette Use","datayear":2024,"Vermont":6,"Male":7,"Female":5,"diffsex":null,"Age18_24":17,"Age25_44":9,"Age45_64":3,"Age65plus":1,"diffage1825":"1824>2544","diffage1845":"1824>4564","diffage1865":"1824>65","diffage2545":"2544>4564","diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":8,"SomeCollege":8,"CollegeOrMore":3,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":9,"MiddleIncome":5,"HigherIncome":4,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":null,"BIPOC":11,"WnH":5,"diffrace":"BIPOC>WNH","LGBTQ":10,"HetCis":5,"diffsogi":"LGBTQ>HetCis","AnyDisability":9,"NoDisability":5,"diffdis":"AnyDis>NoDis"},{"question":"EMPLOYINSEC_N","label":"Percent of adults who lost employment or had hours reduced in the past year","topic":"Social Determinants of Health","subtopic":"Employment Insecurity","datayear":2024,"Vermont":9,"Male":10,"Female":8,"diffsex":null,"Age18_24":17,"Age25_44":11,"Age45_64":8,"Age65plus":3,"diffage1825":null,"diffage1845":"1824>4564","diffage1865":"1824>65","diffage2545":null,"diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":11,"SomeCollege":9,"CollegeOrMore":7,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":null,"LowerIncome":14,"MiddleIncome":7,"HigherIncome":4,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":null,"BIPOC":13,"WnH":8,"diffrace":null,"LGBTQ":16,"HetCis":8,"diffsogi":"LGBTQ>HetCis","AnyDisability":14,"NoDisability":7,"diffdis":"AnyDis>NoDis"},{"question":"FLUSHOT65_N","label":"Percent of adults 65 and older who had a flu vaccine in the past year","topic":"Healthy Behaviors and Prevention","subtopic":"Flu Vaccine, 65+","datayear":2024,"Vermont":73,"Male":71,"Female":75,"diffsex":null,"Age18_24":null,"Age25_44":null,"Age45_64":null,"Age65plus":73,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":65,"SomeCollege":69,"CollegeOrMore":83,"diffeduHSSC":null,"diffeduHSC":"C>HS","diffeduSCC":"C>SC","LowerIncome":66,"MiddleIncome":79,"HigherIncome":82,"diffinclowmid":"Mid>Low","diffinclowhigh":"High>Low","diffincmidhigh":null,"BIPOC":68,"WnH":74,"diffrace":null,"LGBTQ":63,"HetCis":75,"diffsogi":null,"AnyDisability":70,"NoDisability":74,"diffdis":null},{"question":"FOODINSEC_N","label":"Percent of adults who always, usually or sometimes bought food that did not last in the past year","topic":"Social Determinants of Health","subtopic":"Food Insecurity","datayear":2024,"Vermont":8,"Male":7,"Female":8,"diffsex":null,"Age18_24":10,"Age25_44":10,"Age45_64":8,"Age65plus":4,"diffage1825":null,"diffage1845":null,"diffage1865":"1824>65","diffage2545":null,"diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":13,"SomeCollege":7,"CollegeOrMore":2,"diffeduHSSC":"HS>SC","diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":19,"MiddleIncome":3,"HigherIncome":null,"diffinclowmid":"Low>Mid","diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":11,"WnH":7,"diffrace":null,"LGBTQ":12,"HetCis":7,"diffsogi":"LGBTQ>HetCis","AnyDisability":17,"NoDisability":5,"diffdis":"AnyDis>NoDis"},{"question":"GENHLTH_N","label":"Percent of adults with fair or poor health","topic":"Health Status","subtopic":"General Health Status","datayear":2024,"Vermont":14,"Male":14,"Female":13,"diffsex":null,"Age18_24":12,"Age25_44":10,"Age45_64":15,"Age65plus":16,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":null,"HSorLess":19,"SomeCollege":16,"CollegeOrMore":6,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":25,"MiddleIncome":8,"HigherIncome":5,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":null,"BIPOC":18,"WnH":13,"diffrace":null,"LGBTQ":16,"HetCis":13,"diffsogi":null,"AnyDisability":33,"NoDisability":7,"diffdis":"AnyDis>NoDis"},{"question":"HEAVYDRK_N","label":"Percent of adults who report heavy drinking","topic":"Substance Use and Tobacco","subtopic":"Heavy Drinking","datayear":2024,"Vermont":8,"Male":8,"Female":9,"diffsex":null,"Age18_24":7,"Age25_44":10,"Age45_64":10,"Age65plus":5,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":9,"SomeCollege":9,"CollegeOrMore":8,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":9,"MiddleIncome":8,"HigherIncome":10,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":5,"WnH":9,"diffrace":null,"LGBTQ":7,"HetCis":8,"diffsogi":null,"AnyDisability":8,"NoDisability":8,"diffdis":null},{"question":"HIGHBP_N","label":"Percent of adults with hypertension","topic":"Chronic Disease","subtopic":"Hypertension","datayear":2024,"Vermont":null,"Male":null,"Female":null,"diffsex":null,"Age18_24":null,"Age25_44":null,"Age45_64":null,"Age65plus":null,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":null,"SomeCollege":null,"CollegeOrMore":null,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":null,"MiddleIncome":null,"HigherIncome":null,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":null,"WnH":null,"diffrace":null,"LGBTQ":null,"HetCis":null,"diffsogi":null,"AnyDisability":null,"NoDisability":null,"diffdis":null},{"question":"HIVRISK_N","label":"Percent of adults with high-risk HIV transmission behaviors during the past year","topic":"Health Status","subtopic":"HIV Transmission Risk","datayear":2024,"Vermont":null,"Male":null,"Female":null,"diffsex":null,"Age18_24":null,"Age25_44":null,"Age45_64":null,"Age65plus":null,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":null,"SomeCollege":null,"CollegeOrMore":null,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":null,"MiddleIncome":null,"HigherIncome":null,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":null,"WnH":null,"diffrace":null,"LGBTQ":null,"HetCis":null,"diffsogi":null,"AnyDisability":null,"NoDisability":null,"diffdis":null},{"question":"HIVTESTYR_N","label":"Percent of adults who have been tested for HIV in the past year","topic":"Healthy Behaviors and Prevention","subtopic":"HIV Screening, Past year","datayear":2024,"Vermont":6,"Male":7,"Female":6,"diffsex":null,"Age18_24":11,"Age25_44":11,"Age45_64":4,"Age65plus":2,"diffage1825":null,"diffage1845":"1824>4564","diffage1865":"1824>65","diffage2545":"2544>4564","diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":5,"SomeCollege":8,"CollegeOrMore":6,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":7,"MiddleIncome":7,"HigherIncome":6,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":11,"WnH":6,"diffrace":"BIPOC>WNH","LGBTQ":12,"HetCis":6,"diffsogi":"LGBTQ>HetCis","AnyDisability":6,"NoDisability":6,"diffdis":null},{"question":"HIVTEST_N","label":"Percent of adults who have ever been tested for HIV","topic":"Healthy Behaviors and Prevention","subtopic":"HIV Screening, Ever","datayear":2024,"Vermont":39,"Male":38,"Female":40,"diffsex":null,"Age18_24":24,"Age25_44":52,"Age45_64":48,"Age65plus":21,"diffage1825":"2544>1824","diffage1845":"4564>1824","diffage1865":null,"diffage2545":null,"diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":31,"SomeCollege":42,"CollegeOrMore":42,"diffeduHSSC":"SC>HS","diffeduHSC":"C>HS","diffeduSCC":null,"LowerIncome":39,"MiddleIncome":40,"HigherIncome":45,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":45,"WnH":38,"diffrace":null,"LGBTQ":49,"HetCis":38,"diffsogi":"LGBTQ>HetCis","AnyDisability":43,"NoDisability":37,"diffdis":"AnyDis>NoDis"},{"question":"HLTHPLN1864_N","label":"Percent of adults 18-64 with a medical health plan","topic":"Health Care Access","subtopic":"Medical Health Plan Coverage, 18-64","datayear":2024,"Vermont":94,"Male":92,"Female":95,"diffsex":null,"Age18_24":95,"Age25_44":91,"Age45_64":95,"Age65plus":null,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":"4564>2544","diffage2565":null,"diffage4565":null,"HSorLess":89,"SomeCollege":94,"CollegeOrMore":97,"diffeduHSSC":"SC>HS","diffeduHSC":"C>HS","diffeduSCC":"C>SC","LowerIncome":89,"MiddleIncome":94,"HigherIncome":98,"diffinclowmid":"Mid>Low","diffinclowhigh":"High>Low","diffincmidhigh":"High>Mid","BIPOC":93,"WnH":94,"diffrace":null,"LGBTQ":95,"HetCis":94,"diffsogi":null,"AnyDisability":94,"NoDisability":94,"diffdis":null},{"question":"HOUSINSEC_N","label":"Percent of adults unable to pay mortgage, rent or utilities in the past year","topic":"Social Determinants of Health","subtopic":"Housing Insecurity","datayear":2024,"Vermont":7,"Male":7,"Female":8,"diffsex":null,"Age18_24":7,"Age25_44":12,"Age45_64":8,"Age65plus":3,"diffage1825":null,"diffage1845":null,"diffage1865":"1824>65","diffage2545":"2544>4564","diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":10,"SomeCollege":9,"CollegeOrMore":4,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":16,"MiddleIncome":5,"HigherIncome":null,"diffinclowmid":"Low>Mid","diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":12,"WnH":7,"diffrace":"BIPOC>WNH","LGBTQ":11,"HetCis":7,"diffsogi":"LGBTQ>HetCis","AnyDisability":15,"NoDisability":5,"diffdis":"AnyDis>NoDis"},{"question":"KIDNEY_N","label":"Percent of adults with chronic kidney disease","topic":"Chronic Disease","subtopic":"Chronic Kidney Disease","datayear":2024,"Vermont":3,"Male":3,"Female":3,"diffsex":null,"Age18_24":null,"Age25_44":1,"Age45_64":3,"Age65plus":6,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":"65>4564","HSorLess":3,"SomeCollege":3,"CollegeOrMore":2,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":4,"MiddleIncome":2,"HigherIncome":1,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":null,"BIPOC":null,"WnH":3,"diffrace":null,"LGBTQ":1,"HetCis":3,"diffsogi":"HetCis>LGBTQ","AnyDisability":6,"NoDisability":2,"diffdis":"AnyDis>NoDis"},{"question":"LDSATISFY_N","label":"Percent of adults who are dissatisfied or very dissatisfied with life","topic":"Social Determinants of Health","subtopic":"Satisfaction with Life","datayear":2024,"Vermont":5,"Male":6,"Female":5,"diffsex":null,"Age18_24":7,"Age25_44":6,"Age45_64":6,"Age65plus":3,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":7,"SomeCollege":7,"CollegeOrMore":3,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":10,"MiddleIncome":3,"HigherIncome":null,"diffinclowmid":"Low>Mid","diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":8,"WnH":5,"diffrace":null,"LGBTQ":10,"HetCis":5,"diffsogi":"LGBTQ>HetCis","AnyDisability":13,"NoDisability":3,"diffdis":"AnyDis>NoDis"},{"question":"LONELY_N","label":"Percent of adults who always or usually feel lonely","topic":"Social Determinants of Health","subtopic":"Loneliness","datayear":2024,"Vermont":5,"Male":6,"Female":5,"diffsex":null,"Age18_24":11,"Age25_44":6,"Age45_64":5,"Age65plus":3,"diffage1825":"1824>2544","diffage1845":"1824>4564","diffage1865":"1824>65","diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":9,"SomeCollege":5,"CollegeOrMore":3,"diffeduHSSC":"HS>SC","diffeduHSC":"HS>C","diffeduSCC":null,"LowerIncome":9,"MiddleIncome":4,"HigherIncome":null,"diffinclowmid":"Low>Mid","diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":8,"WnH":5,"diffrace":null,"LGBTQ":10,"HetCis":4,"diffsogi":"LGBTQ>HetCis","AnyDisability":13,"NoDisability":3,"diffdis":"AnyDis>NoDis"},{"question":"MEDCOST_N","label":"Percent of adults who did not visit the doctor due to cost","topic":"Health Care Access","subtopic":"Did Not Visit Doctor Due to Cost","datayear":2024,"Vermont":8,"Male":8,"Female":8,"diffsex":null,"Age18_24":9,"Age25_44":13,"Age45_64":8,"Age65plus":2,"diffage1825":null,"diffage1845":null,"diffage1865":"1824>65","diffage2545":"2544>4564","diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":10,"SomeCollege":8,"CollegeOrMore":5,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":13,"MiddleIncome":7,"HigherIncome":null,"diffinclowmid":"Low>Mid","diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":13,"WnH":7,"diffrace":"BIPOC>WNH","LGBTQ":11,"HetCis":7,"diffsogi":"LGBTQ>HetCis","AnyDisability":12,"NoDisability":6,"diffdis":"AnyDis>NoDis"},{"question":"MENTHLTH_N","label":"Percent of adults with poor mental health","topic":"Health Status","subtopic":"Poor Mental Health","datayear":2024,"Vermont":15,"Male":13,"Female":17,"diffsex":null,"Age18_24":24,"Age25_44":20,"Age45_64":14,"Age65plus":7,"diffage1825":null,"diffage1845":"1824>4564","diffage1865":"1824>65","diffage2545":"2544>4564","diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":18,"SomeCollege":18,"CollegeOrMore":10,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":25,"MiddleIncome":12,"HigherIncome":7,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":"Mid>High","BIPOC":21,"WnH":14,"diffrace":"BIPOC>WNH","LGBTQ":30,"HetCis":13,"diffsogi":"LGBTQ>HetCis","AnyDisability":32,"NoDisability":9,"diffdis":"AnyDis>NoDis"},{"question":"NEIGHBNOTSAFE_N","label":"Percent of adults who say their neighborhood is unsafe or extremely unsafe due to crime","topic":"Social Determinants of Health","subtopic":"Neighborhood Safety","datayear":2024,"Vermont":4,"Male":4,"Female":4,"diffsex":null,"Age18_24":7,"Age25_44":5,"Age45_64":4,"Age65plus":3,"diffage1825":null,"diffage1845":null,"diffage1865":"1824>65","diffage2545":null,"diffage2565":"2544>65","diffage4565":null,"HSorLess":5,"SomeCollege":5,"CollegeOrMore":2,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":7,"MiddleIncome":2,"HigherIncome":null,"diffinclowmid":"Low>Mid","diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":7,"WnH":4,"diffrace":"BIPOC>WNH","LGBTQ":7,"HetCis":3,"diffsogi":"LGBTQ>HetCis","AnyDisability":9,"NoDisability":2,"diffdis":"AnyDis>NoDis"},{"question":"NOLEISURE_N","label":"Percent of adults with no leisure time physical activity in the past month","topic":"Health Status","subtopic":"No Leisure Time Physical Activity","datayear":2024,"Vermont":16,"Male":14,"Female":18,"diffsex":"Female>Male","Age18_24":14,"Age25_44":10,"Age45_64":18,"Age65plus":21,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":null,"HSorLess":25,"SomeCollege":17,"CollegeOrMore":8,"diffeduHSSC":"HS>SC","diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":25,"MiddleIncome":13,"HigherIncome":5,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":"Mid>High","BIPOC":15,"WnH":16,"diffrace":null,"LGBTQ":18,"HetCis":15,"diffsogi":null,"AnyDisability":27,"NoDisability":12,"diffdis":"AnyDis>NoDis"},{"question":"OBESE_N","label":"Percent of adults 20 and older with BMI-defined obesity","topic":"Health Status","subtopic":"BMI-Defined Obesity, 20+","datayear":2024,"Vermont":30,"Male":29,"Female":31,"diffsex":null,"Age18_24":23,"Age25_44":29,"Age45_64":34,"Age65plus":28,"diffage1825":null,"diffage1845":"4564>1824","diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":"4564>65","HSorLess":36,"SomeCollege":34,"CollegeOrMore":22,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":35,"MiddleIncome":30,"HigherIncome":23,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":"Mid>High","BIPOC":29,"WnH":30,"diffrace":null,"LGBTQ":33,"HetCis":30,"diffsogi":null,"AnyDisability":39,"NoDisability":27,"diffdis":"AnyDis>NoDis"},{"question":"OVERWEIGHT_N","label":"Percent of adults 20-59 with BMI-defined overweight status","topic":"Health Status","subtopic":"BMI-Defined Overweight, 20-59","datayear":2024,"Vermont":33,"Male":40,"Female":27,"diffsex":"Male>Female","Age18_24":23,"Age25_44":34,"Age45_64":38,"Age65plus":null,"diffage1825":"2544>1824","diffage1845":"4564>1824","diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":32,"SomeCollege":33,"CollegeOrMore":35,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":30,"MiddleIncome":34,"HigherIncome":39,"diffinclowmid":null,"diffinclowhigh":"High>Low","diffincmidhigh":null,"BIPOC":31,"WnH":34,"diffrace":null,"LGBTQ":29,"HetCis":34,"diffsogi":null,"AnyDisability":29,"NoDisability":34,"diffdis":null},{"question":"PERSDOC_N","label":"Percent of adults with a personal health care provider","topic":"Health Care Access","subtopic":"Personal Health Care Provider","datayear":2024,"Vermont":90,"Male":87,"Female":93,"diffsex":"Female>Male","Age18_24":87,"Age25_44":83,"Age45_64":92,"Age65plus":98,"diffage1825":null,"diffage1845":null,"diffage1865":"65>1824","diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":"65>4564","HSorLess":87,"SomeCollege":91,"CollegeOrMore":93,"diffeduHSSC":null,"diffeduHSC":"C>HS","diffeduSCC":null,"LowerIncome":88,"MiddleIncome":90,"HigherIncome":93,"diffinclowmid":null,"diffinclowhigh":"High>Low","diffincmidhigh":null,"BIPOC":83,"WnH":91,"diffrace":"WNH>BIPOC","LGBTQ":88,"HetCis":91,"diffsogi":null,"AnyDisability":92,"NoDisability":90,"diffdis":null},{"question":"PHYSHTLH_N","label":"Percent of adults with poor physical health","topic":"Health Status","subtopic":"Poor Physical Health","datayear":2024,"Vermont":13,"Male":12,"Female":13,"diffsex":null,"Age18_24":8,"Age25_44":9,"Age45_64":15,"Age65plus":15,"diffage1825":null,"diffage1845":"4564>1824","diffage1865":null,"diffage2545":"4564>2544","diffage2565":"65>2544","diffage4565":null,"HSorLess":17,"SomeCollege":15,"CollegeOrMore":8,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":22,"MiddleIncome":9,"HigherIncome":6,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":null,"BIPOC":16,"WnH":12,"diffrace":null,"LGBTQ":14,"HetCis":12,"diffsogi":null,"AnyDisability":32,"NoDisability":6,"diffdis":"AnyDis>NoDis"},{"question":"PNEU65_N","label":"Percent of adults 65 and older who ever had a pneumococcal vaccine","topic":"Healthy Behaviors and Prevention","subtopic":"Pneumococcal Vaccine, 65+","datayear":2024,"Vermont":71,"Male":68,"Female":74,"diffsex":null,"Age18_24":null,"Age25_44":null,"Age45_64":null,"Age65plus":71,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":70,"SomeCollege":70,"CollegeOrMore":74,"diffeduHSSC":null,"diffeduHSC":null,"diffeduSCC":null,"LowerIncome":68,"MiddleIncome":73,"HigherIncome":73,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":72,"WnH":71,"diffrace":null,"LGBTQ":68,"HetCis":71,"diffsogi":null,"AnyDisability":71,"NoDisability":71,"diffdis":null},{"question":"RARSUPRT_N","label":"Percent of adults who rarely or never get social and emotional support","topic":"Social Determinants of Health","subtopic":"Social & Emotional Support","datayear":2024,"Vermont":6,"Male":10,"Female":4,"diffsex":"Male>Female","Age18_24":9,"Age25_44":5,"Age45_64":6,"Age65plus":7,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":11,"SomeCollege":6,"CollegeOrMore":3,"diffeduHSSC":"HS>SC","diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":12,"MiddleIncome":4,"HigherIncome":3,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":null,"BIPOC":9,"WnH":6,"diffrace":null,"LGBTQ":8,"HetCis":6,"diffsogi":null,"AnyDisability":13,"NoDisability":4,"diffdis":"AnyDis>NoDis"},{"question":"SKINCANCER_N","label":"Percent of adults ever diagnosed with non-melanoma skin cancer","topic":"Chronic Disease","subtopic":"Skin Cancer","datayear":2024,"Vermont":7,"Male":6,"Female":8,"diffsex":null,"Age18_24":null,"Age25_44":1,"Age45_64":7,"Age65plus":17,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":"65>4564","HSorLess":5,"SomeCollege":7,"CollegeOrMore":9,"diffeduHSSC":null,"diffeduHSC":"C>HS","diffeduSCC":null,"LowerIncome":6,"MiddleIncome":7,"HigherIncome":8,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":null,"WnH":8,"diffrace":"WNH>BIPOC","LGBTQ":3,"HetCis":8,"diffsogi":"HetCis>LGBTQ","AnyDisability":8,"NoDisability":7,"diffdis":null},{"question":"SMOKELESS_N","label":"Percent of adults who use smokeless tobacco","topic":"Substance Use and Tobacco","subtopic":"Smokeless Tobacco Use","datayear":2024,"Vermont":2,"Male":4,"Female":null,"diffsex":null,"Age18_24":null,"Age25_44":3,"Age45_64":3,"Age65plus":1,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":4,"SomeCollege":3,"CollegeOrMore":1,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":3,"MiddleIncome":3,"HigherIncome":null,"diffinclowmid":null,"diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":null,"WnH":2,"diffrace":null,"LGBTQ":null,"HetCis":2,"diffsogi":null,"AnyDisability":3,"NoDisability":2,"diffdis":null},{"question":"TEETHEX4564_N","label":"Percent of adults 45-64 who have had any teeth extracted","topic":"Healthy Behaviors and Prevention","subtopic":"Teeth Extracted, 45-64","datayear":2024,"Vermont":42,"Male":44,"Female":40,"diffsex":null,"Age18_24":null,"Age25_44":null,"Age45_64":42,"Age65plus":null,"diffage1825":null,"diffage1845":null,"diffage1865":null,"diffage2545":null,"diffage2565":null,"diffage4565":null,"HSorLess":62,"SomeCollege":45,"CollegeOrMore":25,"diffeduHSSC":"HS>SC","diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":65,"MiddleIncome":39,"HigherIncome":24,"diffinclowmid":"Low>Mid","diffinclowhigh":"Low>High","diffincmidhigh":"Mid>High","BIPOC":43,"WnH":42,"diffrace":null,"LGBTQ":45,"HetCis":41,"diffsogi":null,"AnyDisability":62,"NoDisability":36,"diffdis":"AnyDis>NoDis"},{"question":"TRANSINSEC_N","label":"Percent of adults with lack of reliable transportation in the past year","topic":"Social Determinants of Health","subtopic":"Transportation Insecurity","datayear":2024,"Vermont":5,"Male":5,"Female":5,"diffsex":null,"Age18_24":9,"Age25_44":6,"Age45_64":4,"Age65plus":3,"diffage1825":null,"diffage1845":null,"diffage1865":"1824>65","diffage2545":null,"diffage2565":"2544>65","diffage4565":null,"HSorLess":7,"SomeCollege":6,"CollegeOrMore":3,"diffeduHSSC":null,"diffeduHSC":"HS>C","diffeduSCC":"SC>C","LowerIncome":12,"MiddleIncome":2,"HigherIncome":null,"diffinclowmid":"Low>Mid","diffinclowhigh":null,"diffincmidhigh":null,"BIPOC":13,"WnH":4,"diffrace":"BIPOC>WNH","LGBTQ":12,"HetCis":4,"diffsogi":"LGBTQ>HetCis","AnyDisability":14,"NoDisability":2,"diffdis":"AnyDis>NoDis"},{"question":"WATERARSENIC_N","label":"Percent of adult homeowners who tested their private water for arsenic in the past five years","topic":"Environment","subtopic":"Tested Household Water for Arsenic","datayear":2024,"Vermont":45,"Male":43,"Female":47,"diffsex":null,"Age18_24":74,"Age25_44":65,"Age45_64":42,"Age65plus":34,"diffage1825":null,"diffage1845":null,"diffage1865":"1824>65","diffage2545":"2544>4564","diffage2565":"2544>65","diffage4565":"4564>65","HSorLess":39,"SomeCollege":46,"CollegeOrMore":49,"diffeduHSSC":null,"diffeduHSC":"C>HS","diffeduSCC":null,"LowerIncome":37,"MiddleIncome":46,"HigherIncome":55,"diffinclowmid":null,"diffinclowhigh":"High>Low","diffincmidhigh":null,"BIPOC":56,"WnH":44,"diffrace":null,"LGBTQ":58,"HetCis":44,"diffsogi":"LGBTQ>HetCis","AnyDisability":42,"NoDisability":46,"diffdis":null}];
+
+const TOPICS = [
+  "Chronic Disease",
+  "Environment",
+  "Health Care Access",
+  "Health Status",
+  "Healthy Behaviors and Prevention",
+  "Injury, Violence and Safety",
+  "Social Determinants of Health",
+  "Substance Use and Tobacco"
+];
+const DIM_CONFIG = {
+  overall: {
+    label: "Overall",
+    groups: [ { key:"Vermont", label:"Vermont", short:"Vermont", field:"Vermont", slot:1 } ],
+    diffFields: []
+  },
+  sex: {
+    label: "Sex",
+    groups: [
+      { key:"Male", label:"Male", short:"Male", field:"Male", slot:1 },
+      { key:"Female", label:"Female", short:"Female", field:"Female", slot:2 }
+    ],
+    diffFields: ["diffsex"],
+    codes: { Male:"Male", Female:"Female" }
+  },
+  age: {
+    label: "Age Group",
+    groups: [
+      { key:"1824", label:"18-24", short:"18-24", field:"Age18_24", slot:1 },
+      { key:"2544", label:"25-44", short:"25-44", field:"Age25_44", slot:2 },
+      { key:"4564", label:"45-64", short:"45-64", field:"Age45_64", slot:3 },
+      { key:"65", label:"65+", short:"65+", field:"Age65plus", slot:4 }
+    ],
+    diffFields: ["diffage1825","diffage1845","diffage1865","diffage2545","diffage2565","diffage4565"],
+    codes: { "1824":"18-24", "2544":"25-44", "4564":"45-64", "65":"65+" }
+  },
+  education: {
+    label: "Education Level",
+    groups: [
+      { key:"HS", label:"High School or Less", short:"HS or Less", field:"HSorLess", slot:1 },
+      { key:"SC", label:"Some College", short:"Some College", field:"SomeCollege", slot:2 },
+      { key:"C", label:"College or More", short:"College+", field:"CollegeOrMore", slot:3 }
+    ],
+    diffFields: ["diffeduHSSC","diffeduHSC","diffeduSCC"],
+    codes: { HS:"High School or Less", SC:"Some College", C:"College or More" }
+  },
+  income: {
+    label: "Household Income",
+    groups: [
+      { key:"Low", label:"Lower Income (under $50K)", short:"Lower Income", field:"LowerIncome", slot:1 },
+      { key:"Mid", label:"Middle Income ($50K to $150K)", short:"Middle Income", field:"MiddleIncome", slot:2 },
+      { key:"High", label:"Higher Income ($150K+)", short:"Higher Income", field:"HigherIncome", slot:3 }
+    ],
+    diffFields: ["diffinclowmid","diffinclowhigh","diffincmidhigh"],
+    codes: { Low:"Lower Income", Mid:"Middle Income", High:"Higher Income" }
+  },
+  race: {
+    label: "Race / Ethnicity",
+    groups: [
+      { key:"BIPOC", label:"BIPOC", short:"BIPOC", field:"BIPOC", slot:1 },
+      { key:"WNH", label:"White, non-Hispanic", short:"White, non-Hisp.", field:"WnH", slot:2 }
+    ],
+    diffFields: ["diffrace"],
+    codes: { BIPOC:"BIPOC", WNH:"White, non-Hispanic" }
+  },
+  sogi: {
+    label: "Sexual Orientation & Gender Identity",
+    groups: [
+      { key:"LGBTQ", label:"LGBTQ+", short:"LGBTQ+", field:"LGBTQ", slot:1 },
+      { key:"HetCis", label:"Heterosexual, Cisgender", short:"Het., Cisgender", field:"HetCis", slot:2 }
+    ],
+    diffFields: ["diffsogi"],
+    codes: { LGBTQ:"LGBTQ+", HetCis:"Heterosexual, Cisgender" }
+  },
+  disability: {
+    label: "Disability Status",
+    groups: [
+      { key:"AnyDis", label:"Any Disability", short:"Any Disability", field:"AnyDisability", slot:1 },
+      { key:"NoDis", label:"No Disability", short:"No Disability", field:"NoDisability", slot:2 }
+    ],
+    diffFields: ["diffdis"],
+    codes: { AnyDis:"Any Disability", NoDis:"No Disability" }
+  }
+};
+const DIM_ORDER = ["overall","sex","age","education","income","race","sogi","disability"];
+
+/* ============================= STATE ============================= */
+const state = {
+  view: "home",
+  topic: null,
+  question: null,
+  popMode: "population",   // "population" | "trend"
+  dimension: "overall",
+  chartMode: "chart"       // "chart" | "table"
+};
+
+/* ============================= HELPERS ============================= */
+function byTopic(topic) { return DATA.filter(r => r.topic === topic); }
+function findRecord(question) { return DATA.find(r => r.question === question); }
+function fmtPct(v) { return (v === null || v === undefined) ? "–" : v + "%"; }
+function slotColor(slot) { return `var(--series-${slot})`; }
+
+function decodeDiff(dimKey, raw) {
+  if (!raw) return null;
+  const cfg = DIM_CONFIG[dimKey];
+  const parts = raw.split(">");
+  if (parts.length !== 2) return raw;
+  const a = (cfg.codes && cfg.codes[parts[0]]) || parts[0];
+  const b = (cfg.codes && cfg.codes[parts[1]]) || parts[1];
+  return `${a} is significantly higher than ${b}`;
+}
+
+function collectDiffs(record, dimKey) {
+  const cfg = DIM_CONFIG[dimKey];
+  const out = [];
+  (cfg.diffFields || []).forEach(f => {
+    const d = decodeDiff(dimKey, record[f]);
+    if (d && !out.includes(d)) out.push(d);
+  });
+  return out;
+}
+
+function downloadCSV(rows, filename) {
+  if (!rows.length) return;
+  const headers = Object.keys(rows[0]);
+  const esc = v => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  };
+  const csv = [headers.join(",")].concat(
+    rows.map(r => headers.map(h => esc(r[h])).join(","))
+  ).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ============================= NAV ============================= */
+document.getElementById("navHome").addEventListener("click", () => { state.view = "home"; render(); });
+document.getElementById("navTopic").addEventListener("click", () => { state.view = "topic"; render(); });
+document.getElementById("themeToggle").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  document.documentElement.setAttribute("data-theme", cur === "dark" ? "light" : "dark");
+});
+
+function render() {
+  document.getElementById("navHome").classList.toggle("active", state.view === "home");
+  document.getElementById("navTopic").classList.toggle("active", state.view === "topic");
+  document.getElementById("homeView").hidden = state.view !== "home";
+  document.getElementById("topicView").hidden = state.view !== "topic";
+  if (state.view === "home") renderHome();
+  else renderTopicView();
+}
+
+/* ============================= HOME ============================= */
+function renderHome() {
+  const el = document.getElementById("homeView");
+  const cards = TOPICS.map(topic => {
+    const rows = byTopic(topic);
+    const highlight = rows.find(r => r.Vermont !== null) || rows[0];
+    return `
+      <button type="button" class="card topic-card" data-topic="${topic}">
+        <h3>${topic}</h3>
+        <div class="count">${rows.length} indicator${rows.length === 1 ? "" : "s"}</div>
+        <div class="stat">${fmtPct(highlight ? highlight.Vermont : null)}</div>
+        <div class="stat-label">${highlight ? highlight.label : ""}</div>
+        <div class="explore">Explore topic &rarr;</div>
+      </button>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="card hero">
+      <h2>Explore Vermont's health at a glance</h2>
+      <p>
+        This dashboard makes Vermont Behavioral Risk Factor Surveillance System (BRFSS) data easier to explore
+        without reading the full statewide annual report. It has two pages:
+        <strong>Home</strong>, which shows a data highlight for each of the 8 topic areas below, and
+        <strong>Topic</strong>, where you can look at any indicator broken down by population group for the
+        current data year, or across years as more data becomes available.
+      </p>
+    </div>
+    <div class="topic-grid">${cards}</div>
+  `;
+  el.querySelectorAll(".topic-card").forEach(card => {
+    card.addEventListener("click", () => {
+      state.view = "topic";
+      state.topic = card.dataset.topic;
+      state.question = null;
+      render();
+    });
+  });
+}
+
+/* ============================= TOPIC VIEW ============================= */
+function renderTopicView() {
+  const el = document.getElementById("topicView");
+
+  const sidebarTopics = TOPICS.map(topic => {
+    const active = state.topic === topic ? "active" : "";
+    return `<button class="topic-list-item ${active}" data-topic="${topic}">${topic}</button>`;
+  }).join("");
+
+  let indicatorListHtml = "";
+  if (state.topic) {
+    const rows = byTopic(state.topic).slice().sort((a,b) => a.subtopic.localeCompare(b.subtopic));
+    indicatorListHtml = `
+      <h4 style="margin-top:16px;">Indicators</h4>
+      <div class="indicator-list">
+        ${rows.map(r => `<button class="indicator-item ${state.question === r.question ? "active" : ""}" data-q="${r.question}">${r.subtopic}</button>`).join("")}
+      </div>`;
+  }
+
+  el.innerHTML = `
+    <div class="topic-layout">
+      <div class="card sidebar">
+        <h4>Topic Areas</h4>
+        <div>${sidebarTopics}</div>
+        ${indicatorListHtml}
+      </div>
+      <div class="card panel" id="indicatorPanel"></div>
+    </div>
+  `;
+
+  el.querySelectorAll(".topic-list-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.topic = btn.dataset.topic;
+      state.question = null;
+      render();
+    });
+  });
+  el.querySelectorAll(".indicator-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.question = btn.dataset.q;
+      renderIndicatorPanelOnly();
+    });
+  });
+
+  renderIndicatorPanelOnly();
+}
+
+function renderIndicatorPanelOnly() {
+  const panel = document.getElementById("indicatorPanel");
+  if (!state.topic) {
+    panel.innerHTML = `<div class="empty-state">Select a Topic Area on the left to explore its indicators.</div>`;
+    return;
+  }
+  if (!state.question) {
+    panel.innerHTML = `<div class="empty-state">Select an indicator from the "${state.topic}" list to view population data.</div>`;
+    return;
+  }
+  const record = findRecord(state.question);
+  if (!record || record.Vermont === null) {
+    panel.innerHTML = `
+      <h2>${record ? record.label : ""}</h2>
+      <div class="empty-state">Data is not yet available for this indicator in the current extract.</div>`;
+    return;
+  }
+
+  panel.innerHTML = `
+    <h2>${record.label}</h2>
+    <div class="meta-row">
+      <span class="pill">${record.topic}</span>
+      <span class="pill">${record.subtopic}</span>
+      <span>Data year: ${record.datayear}</span>
+    </div>
+    <div class="view-toggle">
+      <button class="toggle-btn ${state.popMode === "population" ? "active" : ""}" data-mode="population">Population Groups</button>
+      <button class="toggle-btn ${state.popMode === "trend" ? "active" : ""}" data-mode="trend">Trend Over Time</button>
+    </div>
+    <div id="modeBody"></div>
+    <div class="downloads">
+      <button class="dl-btn" id="dlIndicator">Download this indicator (CSV)</button>
+      <button class="dl-btn" id="dlAll">Download full dataset (CSV)</button>
+    </div>
+  `;
+
+  panel.querySelectorAll(".view-toggle .toggle-btn").forEach(btn => {
+    btn.addEventListener("click", () => { state.popMode = btn.dataset.mode; renderIndicatorPanelOnly(); });
+  });
+  panel.querySelector("#dlIndicator").addEventListener("click", () => downloadCSV([record], `${record.question}.csv`));
+  panel.querySelector("#dlAll").addEventListener("click", () => downloadCSV(DATA, "brfss_full_dataset.csv"));
+
+  const body = panel.querySelector("#modeBody");
+  if (state.popMode === "population") renderPopulationMode(body, record);
+  else renderTrendMode(body, record);
+}
+
+/* ---------- Population Groups mode ---------- */
+function renderPopulationMode(container, record) {
+  const dimButtons = DIM_ORDER.map(key => {
+    const cfg = DIM_CONFIG[key];
+    const groups = cfg.groups.filter(g => record[g.field] !== null);
+    if (!groups.length) return "";
+    return `<button class="toggle-btn ${state.dimension === key ? "active" : ""}" data-dim="${key}">${cfg.label}</button>`;
+  }).join("");
+
+  container.innerHTML = `
+    <div class="dim-toggle">${dimButtons}</div>
+    <div class="chart-toolbar">
+      <button class="link-btn" id="toggleChartMode">${state.chartMode === "chart" ? "View as table" : "View as chart"}</button>
+    </div>
+    <div id="chartHost"></div>
+    <div id="sigHost"></div>
+  `;
+  container.querySelectorAll(".dim-toggle .toggle-btn").forEach(btn => {
+    btn.addEventListener("click", () => { state.dimension = btn.dataset.dim; renderIndicatorPanelOnly(); });
+  });
+  container.querySelector("#toggleChartMode").addEventListener("click", () => {
+    state.chartMode = state.chartMode === "chart" ? "table" : "chart";
+    renderIndicatorPanelOnly();
+  });
+
+  let cfg = DIM_CONFIG[state.dimension];
+  let groups = cfg.groups.filter(g => record[g.field] !== null);
+  if (!groups.length) {
+    // fall back to Overall if the current dimension has no data for this indicator
+    state.dimension = "overall";
+    cfg = DIM_CONFIG.overall;
+    groups = cfg.groups.filter(g => record[g.field] !== null);
+  }
+  const chartData = groups.map(g => ({ label: g.label, short: g.short, value: record[g.field], slot: g.slot }));
+
+  const chartHost = container.querySelector("#chartHost");
+  if (state.chartMode === "chart") renderBarChart(chartHost, chartData);
+  else renderTable(chartHost, chartData);
+
+  const diffs = collectDiffs(record, state.dimension);
+  const sigHost = container.querySelector("#sigHost");
+  if (!cfg.diffFields || !cfg.diffFields.length) {
+    sigHost.innerHTML = "";
+  } else if (diffs.length) {
+    sigHost.innerHTML = `
+      <div class="sig-panel">
+        <div class="sig-title">Statistically significant differences</div>
+        <ul>${diffs.map(d => `<li><span class="sig-badge">SIG</span>${d}</li>`).join("")}</ul>
+        <div class="muted" style="margin-top:6px;">See the full BRFSS annual report for detailed statistical methodology.</div>
+      </div>`;
+  } else {
+    sigHost.innerHTML = `
+      <div class="sig-panel">
+        <span class="muted">No statistically significant differences were detected among these groups.</span>
+      </div>`;
+  }
+}
+
+/* ---------- Trend Over Time mode ---------- */
+function renderTrendMode(container, record) {
+  const years = DATA
+    .filter(r => r.question === record.question && r.Vermont !== null)
+    .map(r => ({ year: r.datayear, value: r.Vermont }))
+    .sort((a,b) => a.year - b.year);
+
+  container.innerHTML = `<div id="trendHost"></div>`;
+  const host = container.querySelector("#trendHost");
+  renderTrendChart(host, years);
+
+  if (years.length < 2) {
+    const note = document.createElement("div");
+    note.className = "empty-state";
+    note.style.textAlign = "left";
+    note.textContent = "This preview dataset includes one data year (" + years[0].year + "). As additional years are added, this view will automatically show the trend line across years.";
+    host.appendChild(note);
+  }
+}
+
+/* ============================= CHARTS (SVG) ============================= */
+function roundedTopPath(x, y, w, h, r) {
+  r = Math.min(r, w/2, h);
+  return `M ${x} ${y+h} L ${x} ${y+r} Q ${x} ${y} ${x+r} ${y} L ${x+w-r} ${y} Q ${x+w} ${y} ${x+w} ${y+r} L ${x+w} ${y+h} Z`;
+}
+
+function renderBarChart(host, data) {
+  const W = 760, H = 300, padL = 10, padR = 10, padT = 30, padB = 46;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const maxVal = Math.max(10, ...data.map(d => d.value)) * 1.15;
+  const gap = 18;
+  const barW = Math.min(90, (plotW - gap * (data.length - 1)) / data.length);
+  const totalW = barW * data.length + gap * (data.length - 1);
+  const startX = padL + (plotW - totalW) / 2;
+
+  let bars = "";
+  data.forEach((d, i) => {
+    const x = startX + i * (barW + gap);
+    const barH = (d.value / maxVal) * plotH;
+    const y = padT + plotH - barH;
+    const color = slotColor(d.slot);
+    bars += `
+      <g class="bar" data-i="${i}">
+        <path d="${roundedTopPath(x, y, barW, barH, 4)}" fill="${color}"></path>
+        <text class="bar-value" x="${x + barW/2}" y="${y - 8}" text-anchor="middle">${d.value}%</text>
+        <text class="bar-label" x="${x + barW/2}" y="${padT + plotH + 18}" text-anchor="middle">${wrapLabel(d.short || d.label)}</text>
+      </g>`;
+  });
+
+  host.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:${H}px; display:block;">
+      <line class="axis-line" x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}"></line>
+      ${bars}
+    </svg>`;
+
+  const tooltip = document.getElementById("tooltip");
+  host.querySelectorAll(".bar").forEach((g, i) => {
+    g.addEventListener("mousemove", e => {
+      tooltip.textContent = `${data[i].label}: ${data[i].value}%`;
+      tooltip.style.left = (e.clientX + 14) + "px";
+      tooltip.style.top = (e.clientY + 14) + "px";
+      tooltip.classList.add("show");
+    });
+    g.addEventListener("mouseleave", () => tooltip.classList.remove("show"));
+  });
+}
+
+function wrapLabel(label) {
+  // simple truncation for very long category labels in the axis tick
+  return label.length > 16 ? label.slice(0, 15) + "…" : label;
+}
+
+function renderTrendChart(host, years) {
+  if (!years.length) { host.innerHTML = `<div class="empty-state">No data available.</div>`; return; }
+  const W = 760, H = 260, padL = 40, padR = 20, padT = 20, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const maxVal = Math.max(10, ...years.map(y => y.value)) * 1.2;
+  const xFor = i => years.length === 1 ? padL + plotW/2 : padL + (i/(years.length-1)) * plotW;
+  const yFor = v => padT + plotH - (v/maxVal) * plotH;
+
+  const points = years.map((y,i) => `${xFor(i)},${yFor(y.value)}`).join(" ");
+  const dots = years.map((y,i) => `
+    <circle cx="${xFor(i)}" cy="${yFor(y.value)}" r="5" fill="${slotColor(1)}"></circle>
+    <text class="bar-value" x="${xFor(i)}" y="${yFor(y.value)-12}" text-anchor="middle">${y.value}%</text>
+    <text class="bar-label" x="${xFor(i)}" y="${padT+plotH+20}" text-anchor="middle">${y.year}</text>
+  `).join("");
+
+  host.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:${H}px; display:block;">
+      <line class="axis-line" x1="${padL}" y1="${padT+plotH}" x2="${W-padR}" y2="${padT+plotH}"></line>
+      ${years.length > 1 ? `<polyline points="${points}" fill="none" stroke="${slotColor(1)}" stroke-width="2"></polyline>` : ""}
+      ${dots}
+    </svg>`;
+}
+
+function renderTable(host, data) {
+  host.innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Group</th><th>Percent</th></tr></thead>
+      <tbody>
+        ${data.map(d => `<tr><td>${d.label}</td><td>${d.value}%</td></tr>`).join("")}
+      </tbody>
+    </table>`;
+}
+
+/* ============================= INIT ============================= */
+render();
+</script>
+</body>
+</html>
