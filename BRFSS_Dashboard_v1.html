@@ -183,7 +183,14 @@
   .bar-label { font-size: 11.5px; fill: var(--text-secondary); }
   .axis-line { stroke: var(--baseline); stroke-width: 1; }
 
-  /* ---------- Mobile overrides (must stay last to win the cascade) ---------- */
+  /* ---------- Responsive overrides (must stay last to win the cascade) ---------- */
+  /* Sidebar must drop its sticky positioning whenever .topic-layout stacks to
+     a single column (see the 800px breakpoint above), otherwise it stays
+     pinned to the viewport top while the long topic/indicator list scrolls
+     past underneath it, leaving only a sliver of scroll room for the chart. */
+  @media (max-width: 800px) {
+    .sidebar { position: static; }
+  }
   @media (max-width: 640px) {
     header.top { padding: 16px 16px 12px; }
     header.top .bar { flex-direction: column; align-items: stretch; }
@@ -193,7 +200,7 @@
     main { padding: 14px; }
     .hero { padding: 16px; }
     .panel { padding: 14px 16px; }
-    .sidebar { padding: 12px; position: static; }
+    .sidebar { padding: 12px; }
   }
 </style>
 </head>
