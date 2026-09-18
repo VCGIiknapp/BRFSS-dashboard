@@ -54,7 +54,7 @@
   }
   header.top .bar {
     display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    max-width: 1240px; margin: 0 auto;
+    max-width: 1240px; margin: 0 auto; flex-wrap: wrap;
   }
   header.top h1 { margin: 0; font-size: 22px; font-weight: 700; }
   header.top p.sub { margin: 2px 0 0; font-size: 13px; color: #cfe0f5; }
@@ -87,6 +87,7 @@
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 18px;
   }
   @media (max-width: 900px) { .topic-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .topic-grid { grid-template-columns: 1fr; } }
   .topic-card {
     padding: 16px; cursor: pointer; transition: box-shadow .15s, transform .15s;
     border-top: 4px solid var(--brand-accent);
@@ -150,6 +151,7 @@
   .sig-panel li { margin-bottom: 3px; }
   .sig-badge { display: inline-block; background: var(--series-7); color: #fff; border-radius: 4px; font-size: 10.5px; font-weight: 700; padding: 1px 6px; margin-right: 6px; vertical-align: middle; }
 
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   table.data-table th, table.data-table td {
     text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--gridline);
@@ -180,6 +182,19 @@
   .bar-value { font-size: 12px; font-weight: 700; fill: var(--text-primary); }
   .bar-label { font-size: 11.5px; fill: var(--text-secondary); }
   .axis-line { stroke: var(--baseline); stroke-width: 1; }
+
+  /* ---------- Mobile overrides (must stay last to win the cascade) ---------- */
+  @media (max-width: 640px) {
+    header.top { padding: 16px 16px 12px; }
+    header.top .bar { flex-direction: column; align-items: stretch; }
+    nav.tabs { width: 100%; }
+    nav.tabs button { flex: 1; }
+    #themeToggle { align-self: flex-start; }
+    main { padding: 14px; }
+    .hero { padding: 16px; }
+    .panel { padding: 14px 16px; }
+    .sidebar { padding: 12px; position: static; }
+  }
 </style>
 </head>
 <body class="viz-root">
@@ -187,7 +202,7 @@
 <header class="top">
   <div class="bar">
     <div>
-      <h1>Vermont BRFSS Dashboard</h1>
+      <h1>Vermont BRFSS Data Explorer</h1>
       <p class="sub">Behavioral Risk Factor Surveillance System &middot; 2024 preview data</p>
     </div>
     <nav class="tabs">
@@ -593,7 +608,7 @@ function roundedTopPath(x, y, w, h, r) {
 }
 
 function renderBarChart(host, data) {
-  const W = 760, H = 300, padL = 10, padR = 10, padT = 30, padB = 46;
+  const W = Math.max(260, Math.round(host.clientWidth) || 760), H = 300, padL = 10, padR = 10, padT = 30, padB = 46;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const maxVal = Math.max(10, ...data.map(d => d.value)) * 1.15;
   const gap = 18;
@@ -640,7 +655,7 @@ function wrapLabel(label) {
 
 function renderTrendChart(host, years) {
   if (!years.length) { host.innerHTML = `<div class="empty-state">No data available.</div>`; return; }
-  const W = 760, H = 260, padL = 40, padR = 20, padT = 20, padB = 40;
+  const W = Math.max(260, Math.round(host.clientWidth) || 760), H = 260, padL = 40, padR = 20, padT = 20, padB = 40;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const maxVal = Math.max(10, ...years.map(y => y.value)) * 1.2;
   const xFor = i => years.length === 1 ? padL + plotW/2 : padL + (i/(years.length-1)) * plotW;
@@ -663,16 +678,24 @@ function renderTrendChart(host, years) {
 
 function renderTable(host, data) {
   host.innerHTML = `
-    <table class="data-table">
-      <thead><tr><th>Group</th><th>Percent</th></tr></thead>
-      <tbody>
-        ${data.map(d => `<tr><td>${d.label}</td><td>${d.value}%</td></tr>`).join("")}
-      </tbody>
-    </table>`;
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Group</th><th>Percent</th></tr></thead>
+        <tbody>
+          ${data.map(d => `<tr><td>${d.label}</td><td>${d.value}%</td></tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
 }
 
 /* ============================= INIT ============================= */
 render();
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (state.view === "topic") render(); }, 150);
+});
 </script>
 </body>
 </html>
