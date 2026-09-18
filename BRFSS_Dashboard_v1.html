@@ -145,6 +145,10 @@
 
   .empty-state { color: var(--text-muted); font-size: 13.5px; padding: 30px 10px; text-align: center; }
 
+  .trend-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 12.5px; color: var(--text-secondary); }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
   .sig-panel { margin-top: 14px; padding: 12px 14px; background: var(--gridline); border-radius: 8px; font-size: 13px; }
   .sig-panel .sig-title { font-weight: 700; font-size: 12.5px; text-transform: capitalize; letter-spacing: .03em; color: var(--text-secondary); margin-bottom: 6px; }
   .sig-panel ul { margin: 4px 0 0; padding-left: 18px; }
@@ -590,21 +594,56 @@ function renderPopulationMode(container, record) {
 
 /* ---------- Trend Over Time mode ---------- */
 function renderTrendMode(container, record) {
-  const years = DATA
-    .filter(r => r.question === record.question && r.Vermont !== null)
-    .map(r => ({ year: r.datayear, value: r.Vermont }))
-    .sort((a,b) => a.year - b.year);
+  const dimButtons = DIM_ORDER.map(key => {
+    const cfg = DIM_CONFIG[key];
+    const groups = cfg.groups.filter(g => record[g.field] !== null);
+    if (!groups.length) return "";
+    return `<button class="toggle-btn ${state.dimension === key ? "active" : ""}" data-dim="${key}">${cfg.label}</button>`;
+  }).join("");
 
-  container.innerHTML = `<div id="trendHost"></div>`;
+  container.innerHTML = `
+    <div class="dim-toggle">${dimButtons}</div>
+    <div id="trendHost"></div>
+    <div id="trendLegend"></div>
+  `;
+  container.querySelectorAll(".dim-toggle .toggle-btn").forEach(btn => {
+    btn.addEventListener("click", () => { state.dimension = btn.dataset.dim; renderIndicatorPanelOnly(); });
+  });
+
+  let cfg = DIM_CONFIG[state.dimension];
+  let groups = cfg.groups.filter(g => record[g.field] !== null);
+  if (!groups.length) {
+    // fall back to Overall if the current dimension has no data for this indicator
+    state.dimension = "overall";
+    cfg = DIM_CONFIG.overall;
+    groups = cfg.groups.filter(g => record[g.field] !== null);
+  }
+
+  const rows = DATA.filter(r => r.question === record.question);
+  const series = groups.map(g => ({
+    label: g.label, short: g.short, slot: g.slot,
+    points: rows
+      .filter(r => r[g.field] !== null)
+      .map(r => ({ year: r.datayear, value: r[g.field] }))
+      .sort((a,b) => a.year - b.year)
+  })).filter(s => s.points.length);
+
   const host = container.querySelector("#trendHost");
-  renderTrendChart(host, years);
+  renderTrendChart(host, series);
 
-  if (years.length < 2) {
+  const legendHost = container.querySelector("#trendLegend");
+  legendHost.innerHTML = series.length > 1
+    ? `<div class="trend-legend">${series.map(s => `<span class="legend-item"><span class="legend-swatch" style="background:${slotColor(s.slot)}"></span>${s.label}</span>`).join("")}</div>`
+    : "";
+
+  const maxPoints = Math.max(0, ...series.map(s => s.points.length));
+  if (maxPoints < 2) {
+    const anyYear = (series[0] && series[0].points[0] && series[0].points[0].year) || record.datayear;
     const note = document.createElement("div");
     note.className = "empty-state";
     note.style.textAlign = "left";
-    note.textContent = "This preview dataset includes one data year (" + years[0].year + "). As additional years are added, this view will automatically show the trend line across years.";
-    host.appendChild(note);
+    note.textContent = "This preview dataset includes one data year (" + anyYear + "). As additional years are added, this view will automatically show the trend line across years.";
+    container.appendChild(note);
   }
 }
 
@@ -660,27 +699,51 @@ function wrapLabel(label) {
   return label.length > 16 ? label.slice(0, 15) + "…" : label;
 }
 
-function renderTrendChart(host, years) {
-  if (!years.length) { host.innerHTML = `<div class="empty-state">No data available.</div>`; return; }
+function renderTrendChart(host, series) {
+  if (!series.length || !series.some(s => s.points.length)) {
+    host.innerHTML = `<div class="empty-state">No data available.</div>`;
+    return;
+  }
   const W = Math.max(260, Math.round(host.clientWidth) || 760), H = 260, padL = 40, padR = 20, padT = 20, padB = 40;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  const maxVal = Math.max(10, ...years.map(y => y.value)) * 1.2;
-  const xFor = i => years.length === 1 ? padL + plotW/2 : padL + (i/(years.length-1)) * plotW;
-  const yFor = v => padT + plotH - (v/maxVal) * plotH;
 
-  const points = years.map((y,i) => `${xFor(i)},${yFor(y.value)}`).join(" ");
-  const dots = years.map((y,i) => `
-    <circle cx="${xFor(i)}" cy="${yFor(y.value)}" r="5" fill="${slotColor(1)}"></circle>
-    <text class="bar-value" x="${xFor(i)}" y="${yFor(y.value)-12}" text-anchor="middle">${y.value}%</text>
-    <text class="bar-label" x="${xFor(i)}" y="${padT+plotH+20}" text-anchor="middle">${y.year}</text>
-  `).join("");
+  const allYears = Array.from(new Set(series.flatMap(s => s.points.map(p => p.year)))).sort((a,b) => a - b);
+  const maxVal = Math.max(10, ...series.flatMap(s => s.points.map(p => p.value))) * 1.2;
+  const xFor = i => allYears.length === 1 ? padL + plotW/2 : padL + (i/(allYears.length-1)) * plotW;
+  const yFor = v => padT + plotH - (v/maxVal) * plotH;
+  const showValueLabels = series.length === 1;
+
+  let seriesMarkup = "";
+  series.forEach(s => {
+    const color = slotColor(s.slot);
+    const coords = s.points.map(p => ({ x: xFor(allYears.indexOf(p.year)), y: yFor(p.value), year: p.year, value: p.value }));
+    const line = coords.map(c => `${c.x},${c.y}`).join(" ");
+    seriesMarkup += `
+      ${coords.length > 1 ? `<polyline points="${line}" fill="none" stroke="${color}" stroke-width="2"></polyline>` : ""}
+      ${coords.map(c => `
+        <circle cx="${c.x}" cy="${c.y}" r="5" fill="${color}" data-series="${s.label}" data-value="${c.value}"></circle>
+        ${showValueLabels ? `<text class="bar-value" x="${c.x}" y="${c.y - 12}" text-anchor="middle">${c.value}%</text>` : ""}
+      `).join("")}`;
+  });
+  const yearLabels = allYears.map((y,i) => `<text class="bar-label" x="${xFor(i)}" y="${padT+plotH+20}" text-anchor="middle">${y}</text>`).join("");
 
   host.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:${H}px; display:block;">
       <line class="axis-line" x1="${padL}" y1="${padT+plotH}" x2="${W-padR}" y2="${padT+plotH}"></line>
-      ${years.length > 1 ? `<polyline points="${points}" fill="none" stroke="${slotColor(1)}" stroke-width="2"></polyline>` : ""}
-      ${dots}
+      ${seriesMarkup}
+      ${yearLabels}
     </svg>`;
+
+  const tooltip = document.getElementById("tooltip");
+  host.querySelectorAll("circle").forEach(c => {
+    c.addEventListener("mousemove", e => {
+      tooltip.textContent = `${c.dataset.series}: ${c.dataset.value}%`;
+      tooltip.style.left = (e.clientX + 14) + "px";
+      tooltip.style.top = (e.clientY + 14) + "px";
+      tooltip.classList.add("show");
+    });
+    c.addEventListener("mouseleave", () => tooltip.classList.remove("show"));
+  });
 }
 
 function renderTable(host, data) {
