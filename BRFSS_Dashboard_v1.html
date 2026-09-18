@@ -252,11 +252,6 @@ const TOPICS = [
   "Substance Use and Tobacco"
 ];
 const DIM_CONFIG = {
-  overall: {
-    label: "Overall",
-    groups: [ { key:"Vermont", label:"Vermont", short:"Vermont", field:"Vermont", slot:1 } ],
-    diffFields: []
-  },
   sex: {
     label: "Sex",
     groups: [
@@ -325,7 +320,8 @@ const DIM_CONFIG = {
     codes: { AnyDis:"Any Disability", NoDis:"No Disability" }
   }
 };
-const DIM_ORDER = ["overall","sex","age","education","income","race","sogi","disability"];
+const DIM_ORDER = ["sex","age","education","income","race","sogi","disability"];
+const OVERALL_GROUP = { label: "Overall", short: "Overall", field: "Vermont", slot: 1 };
 
 /* ============================= STATE ============================= */
 const state = {
@@ -333,7 +329,7 @@ const state = {
   topic: null,
   question: null,
   popMode: "population",   // "population" | "trend"
-  dimension: "overall",
+  dimension: "sex",
   chartMode: "chart"       // "chart" | "table"
 };
 
@@ -562,12 +558,17 @@ function renderPopulationMode(container, record) {
   let cfg = DIM_CONFIG[state.dimension];
   let groups = cfg.groups.filter(g => record[g.field] !== null);
   if (!groups.length) {
-    // fall back to Overall if the current dimension has no data for this indicator
-    state.dimension = "overall";
-    cfg = DIM_CONFIG.overall;
-    groups = cfg.groups.filter(g => record[g.field] !== null);
+    // fall back to the first dimension that has data for this indicator
+    const fallbackKey = DIM_ORDER.find(k => DIM_CONFIG[k].groups.some(g => record[g.field] !== null));
+    if (fallbackKey) {
+      state.dimension = fallbackKey;
+      cfg = DIM_CONFIG[state.dimension];
+      groups = cfg.groups.filter(g => record[g.field] !== null);
+    }
   }
-  const chartData = groups.map(g => ({ label: g.label, short: g.short, value: record[g.field], slot: g.slot }));
+  const shiftedGroups = groups.map(g => ({ ...g, slot: g.slot + 1 }));
+  const allGroups = record.Vermont !== null ? [OVERALL_GROUP, ...shiftedGroups] : shiftedGroups;
+  const chartData = allGroups.map(g => ({ label: g.label, short: g.short, value: record[g.field], slot: g.slot }));
 
   const chartHost = container.querySelector("#chartHost");
   if (state.chartMode === "chart") renderBarChart(chartHost, chartData);
@@ -613,14 +614,19 @@ function renderTrendMode(container, record) {
   let cfg = DIM_CONFIG[state.dimension];
   let groups = cfg.groups.filter(g => record[g.field] !== null);
   if (!groups.length) {
-    // fall back to Overall if the current dimension has no data for this indicator
-    state.dimension = "overall";
-    cfg = DIM_CONFIG.overall;
-    groups = cfg.groups.filter(g => record[g.field] !== null);
+    // fall back to the first dimension that has data for this indicator
+    const fallbackKey = DIM_ORDER.find(k => DIM_CONFIG[k].groups.some(g => record[g.field] !== null));
+    if (fallbackKey) {
+      state.dimension = fallbackKey;
+      cfg = DIM_CONFIG[state.dimension];
+      groups = cfg.groups.filter(g => record[g.field] !== null);
+    }
   }
+  const shiftedGroups = groups.map(g => ({ ...g, slot: g.slot + 1 }));
+  const allGroups = record.Vermont !== null ? [OVERALL_GROUP, ...shiftedGroups] : shiftedGroups;
 
   const rows = DATA.filter(r => r.question === record.question);
-  const series = groups.map(g => ({
+  const series = allGroups.map(g => ({
     label: g.label, short: g.short, slot: g.slot,
     points: rows
       .filter(r => r[g.field] !== null)
