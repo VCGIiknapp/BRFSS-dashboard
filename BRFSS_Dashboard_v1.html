@@ -125,7 +125,7 @@
     padding: 8px 10px; cursor: pointer; font-size: 13px; color: var(--text-primary);
   }
   .indicator-item:hover { background: var(--gridline); }
-  .indicator-item.active { border-color: var(--series-1); background: var(--gridline); font-weight: 600; }
+  .indicator-item.active { border-color: var(--brand-accent); background: var(--brand-accent); color: #fff; font-weight: 600; }
 
   .panel { padding: 20px 22px; min-height: 420px; }
   .panel h2 { margin: 0 0 2px; font-size: 19px; }
@@ -314,6 +314,10 @@ const state = {
 /* ============================= HELPERS ============================= */
 function byTopic(topic) { return DATA.filter(r => r.topic === topic); }
 function findRecord(question) { return DATA.find(r => r.question === question); }
+function firstIndicatorForTopic(topic) {
+  const rows = byTopic(topic).slice().sort((a,b) => a.subtopic.localeCompare(b.subtopic));
+  return rows.length ? rows[0].question : null;
+}
 function fmtPct(v) { return (v === null || v === undefined) ? "–" : v + "%"; }
 function slotColor(slot) { return `var(--series-${slot})`; }
 
@@ -404,7 +408,7 @@ function renderHome() {
     card.addEventListener("click", () => {
       state.view = "topic";
       state.topic = card.dataset.topic;
-      state.question = null;
+      state.question = firstIndicatorForTopic(state.topic);
       render();
     });
   });
@@ -443,14 +447,14 @@ function renderTopicView() {
   el.querySelectorAll(".topic-list-item").forEach(btn => {
     btn.addEventListener("click", () => {
       state.topic = btn.dataset.topic;
-      state.question = null;
+      state.question = firstIndicatorForTopic(state.topic);
       render();
     });
   });
   el.querySelectorAll(".indicator-item").forEach(btn => {
     btn.addEventListener("click", () => {
       state.question = btn.dataset.q;
-      renderIndicatorPanelOnly();
+      renderTopicView();
     });
   });
 
